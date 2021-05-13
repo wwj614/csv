@@ -1,19 +1,10 @@
 #include <iostream>
-#include <istream>
 #include <fstream>
-#include <sstream>
 #include <string>
-#include <cstring>
-#include <unordered_map>   // std::unordered_map
-#include <vector>          // std::vector
-#include <algorithm>
-#include <memory>
-#include <regex>
-#include <exception>
 
-
+#include "csvReader.hpp"
 using namespace std;
-
+typedef  vector<string> stringVector;
 template<class InputIterator>
 string join (InputIterator first, InputIterator last, string delimited) {
   if (first==last) return "";
@@ -25,9 +16,11 @@ string join (InputIterator first, InputIterator last, string delimited) {
   return s;
 }
 
+
 int main(int argc, char **argv) {  
   char * fileName=argv[1]; 
-  CSVReader csv(fileName);
+  CSVReader csv;
+  csv.open(fileName);
   stringVector cols;
   while(csv.nextCols(cols)){
     cout << join(cols.begin(),cols.end(),"#") <<endl; 
