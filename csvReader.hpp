@@ -1,19 +1,21 @@
 #include <iostream>
+#include <cstring>
+#include <cassert>
 #include <istream>
 #include <fstream>
 #include <string>
-#include <cstring>
 #include <vector>         
-#include <exception>
-
+#include <stdexcept>
 
 using namespace std;
 typedef  vector<string> stringVector;
 /**************************************************************************
-µ±ÐÐ³¤Ð¡ÓÚ¿é³¤¶ÈÊ±£¬ÓÃÁ½¿é»º³å³¤¶È±£Ö¤Ò»ÐÐÊý¾ÝÊÇÍêÕûµÄ¡£
-µ±ÐÐ¿çµ½µÚ¶þ¿éÊ±£¬ÒÆ¶¯µÚ¶þ¿éÊý¾Ýµ½µÚÒ»¿é£¬ÔÙ¶ÁÈëµÚ¶þ¿éÊý¾Ý
-µ±ÐÐ¶Áµ½\0Ê±±íÊ¾×îºóÒ»ÐÐ
-µ±ÐÐ¿ç¹ýµÚ¶þ¿éÊ±£¬ÐÐ³¤ÒÑ³¬¹ý¿é³¤¶È£¬±¨´í
+å½“è¡Œé•¿å°äºŽå—é•¿åº¦æ—¶ï¼Œç”¨ä¸¤å—ç¼“å†²é•¿åº¦ä¿è¯ä¸€è¡Œæ•°æ®æ˜¯å®Œæ•´çš„ã€‚
+å½“è¡Œè·¨åˆ°ç¬¬äºŒå—æ—¶ï¼Œç§»åŠ¨ç¬¬äºŒå—æ•°æ®åˆ°ç¬¬ä¸€å—ï¼Œå†è¯»å…¥ç¬¬äºŒå—æ•°æ®
+å½“è¡Œè¯»åˆ°\0æ—¶è¡¨ç¤ºæœ€åŽä¸€è¡Œ
+å½“è¡Œè·¨è¿‡ç¬¬äºŒå—æ—¶ï¼Œè¡Œé•¿å·²è¶…è¿‡å—é•¿åº¦ï¼ŒæŠ¥é”™
+ä¿ç•™ç¬¬ä¸€ä¸ªä½ç½®ï¼Œç¡®ä¿*ppæœ‰ç¡®å®šå€¼
+ç¡®ä¿*_dataEndä¸º'\0'ï¼Œé˜²æ­¢*pè¶Šç•Œ; 
 ***************************************************************************/
 class CSVReader {
 public:
@@ -39,58 +41,61 @@ CSVReader(const char quota, const char colsep,const char rowsep)
 }
 
 void open(const char *filename) {
-  _buf=new char[_blockLen*2+1];
-  _buf[_blockLen*2]='\n';               // ·ÀÖ¹ÐÐ³¤³¬¹ý_blockLen£¬¼ì²é"Åä¶Ô
-  _buf2=_buf+_blockLen;
+  _buf=new char[_blockLen*2+2];
   if (filename[0]!='-')
     _is=new ifstream(filename,ifstream::binary);
-  _is->read(_buf,_blockLen*2);          // ³õÊ¼»¯Á½¿éÊý¾Ý£¬±£Ö¤µÚÒ»¿éµÄÊý¾ÝÍêÕû
-  _dataBegin=_buf;                      // ÐÂÐÐÍ· 
-  _dataEnd=_buf+_is->gcount();          // ¿éÖÐÓÐÐ§Êý¾ÝÎ²+1
+  *_buf=' ';                                         //ç¡®ä¿*ppæœ‰æ•ˆï¼Œæ–‡ä»¶ä»¥"å¼€å¤´ä¸”*ppä¸º\æ—¶ï¼Œå¯èƒ½çš„è¯¯åˆ¤
+  _head1=_buf+1;
+  _head2=_head1+_blockLen;
+  _dataBegin=_head1;                                 // æ–°è¡Œå¤´ 
+  _is->read(_head1,_blockLen*2);                     // åˆå§‹åŒ–ä¸¤å—æ•°æ®ï¼Œä¿è¯ç¬¬ä¸€å—çš„æ•°æ®å®Œæ•´  
+  _dataEnd=_dataBegin+_is->gcount();                 // å—ä¸­æœ‰æ•ˆæ•°æ®å°¾+2
+  *_dataEnd='\0';                                    // è¡Œè¶…é•¿è¶Šç•Œæ ‡è®°æˆ–æ•°æ®ç»“æŸæ ‡è®°  
   _isEnd=false;                         
 }
 
 bool nextCols(stringVector& cols) {
-  if (_isEnd) return false;             // ÐÐÒÑÈ¥Íê  
+  if (_isEnd) return false;             // è¡Œå·²å–å®Œ  
   char *colBegin=_dataBegin;
   char *p=colBegin;
   char *pp=p-1;
   bool outQuota=true;
   while (*p) {
-    if ( (*p ==_quota) && (*pp != '\\') ) {
+    if ( (*p ==_quota) && (*pp != '\\') ) {            
       outQuota=!outQuota;
     }
-    else if ( (*p ==_colsep) && (*pp != '\\') && outQuota ) {  //ÁÐ½áÊø
+    else if ( (*p ==_colsep) && (*pp != '\\') && outQuota ) {  //åˆ—ç»“æŸ
       *p='\0';      
       cols.push_back(string(colBegin));
       colBegin=p+1;
     }
     else if (*p ==_rowsep)  { 
-      if ((*pp != '\\') && outQuota) {                         //ÐÐ½áÊø 
+      if ((*pp != '\\') && outQuota) {                         //è¡Œç»“æŸ 
         *p='\0';         
         break;           
       } else {
-        *p=' ';
-        if (*pp == '\\') *pp=' ';  // È¥µôÁÐÄÚ»Ø³µ
-      }
+        *p=' ';                         // åŽ»åˆ—å†…å›žè½¦
+        if (*pp == '\\') *pp=' ';       // åŽ»åˆ—å†…å›žè½¦å‰'\'  
+      } 
     }
     p++;
     pp++;
   } 
-  if ((p-_dataBegin) > _blockLen) {
-    throw ("line too large, check quota pair!");
+  if ((p-_dataBegin) >= _blockLen) {
+    throw runtime_error ("line too large, check quota pair!");
   }
-  if (*pp=='\r') *pp='\0';      //È¥µôwindowsµÄCR
-  cols.push_back(string(colBegin));   //×îºóÒ»ÁÐ
-  _dataBegin=p+1;                     //ÏÂÒ»ÐÐÍ·
-  if( _dataBegin >= _buf2) {                    //µÚÒ»¿é¶ÁÍê 
-    memcpy(_buf, _buf2, _blockLen);             //µÚ¶þ¿éÒÆ¶¯µ½µÚÒ»¿é
-    _dataBegin -= _blockLen;              //µ÷ÕûÊý¾Ý·¶Î§
-    _dataEnd -= _blockLen;                //_dataEndÎªÓÐÐ§Êý¾ÝÎ²+1£¬csvÓÐÊý¾ÝÊ±£¬ÔÚµÚ¶þ¿éÍ·
-    if(!_is->eof()) {                     //´Ó_isÖÐ²¹µÚ¶þ¿éÊý¾Ý    
-      _is->read(_dataEnd,_blockLen);
-      _dataEnd += _is->gcount();          
-      *_dataEnd='\0';                     //²¹ÍêÊý¾Ýºó£¬¸ønextColsÖÃÎ²±ê¼Ç 
+  if (*pp=='\r') *pp='\0';      //åŽ»windowsçš„CR
+  cols.push_back(string(colBegin));   //æœ€åŽä¸€åˆ—
+  _dataBegin=p+1;                     //ä¸‹ä¸€è¡Œå¤´
+  if( _dataBegin >= _head2) {             //ç¬¬ä¸€å—è¯»å®Œ 
+    memcpy(_head1-1, _head2-1, _blockLen+2);   //ç¬¬äºŒå—ç§»åŠ¨åˆ°ç¬¬ä¸€å—ï¼ŒåŒ…å«å—å‰ä¸€ä¸ªå­—ç¬¦å’ŒåŽä¸€ä¸ªå­—ç¬¦'\0'
+    _dataBegin -= _blockLen;              //è°ƒæ•´æ•°æ®èŒƒå›´
+    _dataEnd -= _blockLen;                //_dataEndä¸ºæœ‰æ•ˆæ•°æ®å°¾+1ï¼Œcsvæœ‰æ•°æ®æ—¶ï¼Œåœ¨ç¬¬äºŒå—å¤´
+    assert(*_dataEnd=='\0');    
+    if(!_is->eof()) {                     //ä»Ž_isä¸­è¡¥ç¬¬äºŒå—æ•°æ®    
+      _is->read(_dataEnd,_blockLen);       
+      _dataEnd += _is->gcount();          //æ­¤æ—¶_dataEnd<_head2+_blockLen
+      *_dataEnd='\0';                     //è¡¥å®Œæ•°æ®åŽï¼Œç»™nextColsç½®å°¾æ ‡è®°ï¼Œ 
     }
   }
   _isEnd=(_dataBegin>=_dataEnd);
@@ -98,14 +103,18 @@ bool nextCols(stringVector& cols) {
 }
 
 private:
+  static const int _blockLen = 1<<20;  //æœ€å¤§1Mè¡Œé•¿
+
   char _quota;
   char _colsep;
   char _rowsep;
-  static const int _blockLen = 1<<20;  //1M
+
   char *_buf; 
-  char *_buf2; 
-  istream *_is;
+  char *_head1; 
+  char *_head2; 
   char *_dataBegin;
   char *_dataEnd;    
+
   bool _isEnd;
+  istream *_is;
 };

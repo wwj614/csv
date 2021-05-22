@@ -6,6 +6,7 @@
 4、可以有任意多空行
 5、可以空列，少列
 6、转换后列中带\n都被替换为空格
+7、支持文件输入和标准输入，统一标准输出
 
 示例数据：
 1  "LNYPBAA,33DV\"L02004",145996.80 ,舟山市弘光汽\,车销售\"服务有限公司,舟山经\
@@ -52,7 +53,37 @@
 算法：
 用两块缓冲长度缓存
 用二进制读，不进行任何转义
+行结尾和列结尾同时处理，整个数据只扫描一遍
 当行长小于块长度时！！！用两块缓冲长度保证一行数据是完整的。
-当行跨到第二块时，移动第二块数据到第一块，再读入第二块数据
-当行读到\0时表示最后一行
+当行跨到第二块时，移动第二块数据到第一块，有效数据头相对于块位置不变，再补充第二块数据，保证越过第一块的行总是完整的
+当行未超长时，读到\0时表示最后一行
 当行跨过第二块时，行长已超过块长度，报错
+
+细节
+文件的首字符为“时，要保证前一个字符不为‘\'需特殊处理
+有效数据的结尾必须是\0，在块移动后也需保持
+读入完整的块时，移动块2后，dataend==head2
+当行长达到1M时，抛出运行时异常
+
+
+各阶段指针变化
+行跨过块1
+buf head1       databegin                       head2                                      dataend 
+                rowhead        colhead   colend            rowend newdatabegin 
+
+块2移动到块1                
+buf head2       newdatabegin                    dataend
+                newrowhead                              
+
+添加新的块               
+buf head1       databegin                       head2                                      dataend
+                rowhead                              
+               
+添加最后块               
+buf head1       databegin                       head2              dataend
+                rowhead                              
+               
+移动最后块               
+buf head2       newdatabegin      dataend
+                newrowhead                              
+               
